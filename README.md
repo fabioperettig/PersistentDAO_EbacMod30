@@ -13,20 +13,27 @@ automatizados.
 
 ## 📍 Checkpoint atual
 
+Atualizado em 12/09/2026.
+
 | Camada | Concluído | Próximo passo |
 |---|---|---|
 | Domínio | `Client`, `Product`, `Stock`, `SaleItem`, `Sale` e `SaleStatus` | Evoluir as regras de estoque e venda |
 | Persistência | CRUD de clientes e produtos; schemas de cliente, produto e estoque | Persistir estoque e vendas |
-| Serviço | `ClientService` com todos os métodos do CRUD | Criar `ProductService` |
-| Testes | 25 testes de ambiente, integração e unidade | Cobrir os próximos services e DAOs |
+| Serviço | `ClientService` e `ProductService` com todos os métodos do CRUD | Criar o serviço de estoque |
+| Testes | 70 testes de ambiente, integração e unidade | Complementar validações de entrada do domínio e cobrir os próximos services e DAOs |
 
 ### Destaques deste checkpoint
 
 - `AbstractDAO<T, ID>` concentra o fluxo JDBC comum do CRUD.
 - `ClientDAO` e `ProductDAO` mantêm apenas SQL, parâmetros e mapeamentos.
 - `Stock` separa o saldo da entidade `Product`.
-- `ClientService` delega o CRUD pelo contrato `IGenericDAO<Client, Long>`.
-- `ClientServiceTest` usa um DAO falso para testar o service sem banco.
+- `ClientService` e `ProductService` delegam o CRUD pelo contrato `IGenericDAO`,
+  com proteção contra DAO nulo no construtor.
+- Os testes dos dois services usam DAOs falsos, sem acesso ao banco.
+- `SaleItemTest` cobre subtotal, preservação do preço, quantidades inválidas,
+  aumento, redução e proteção contra overflow.
+- `SaleTest` cobre itens, totais, remoções inválidas, conclusão, cancelamento
+  e bloqueios de operações após o encerramento da venda.
 - O ambiente de integração inicializa e limpa o PostgreSQL de testes.
 
 ## 🧰 Tecnologias
@@ -71,8 +78,10 @@ banco.
 
 ### `Product`
 
-Representa o produto com `id`, `name`, `code` e `price`. O código é único e o
-preço, armazenado como `BigDecimal`, não pode ser negativo.
+Representa o produto com `id`, `name`, `code` e `price`. O código é único no
+banco e o preço é armazenado como `BigDecimal`. O banco rejeita preço negativo;
+o setter e o service ainda não fazem essa validação. Preço zero é permitido
+pela regra atual.
 
 ### `Stock`
 
@@ -87,6 +96,17 @@ calcula quantidade e valor total e só pode ser alterada enquanto estiver em
 
 Cada item registra uma quantidade positiva e preserva o preço unitário do
 momento da inclusão, mesmo que o preço atual do produto seja alterado.
+
+Adicionar novamente um produto com o mesmo ID acumula a quantidade no item
+existente. Remover todas as unidades retira o item da venda; uma remoção parcial
+mantém o item com quantidade positiva.
+
+A conclusão exige pelo menos um item. O cancelamento preserva os itens e os
+valores para consulta do histórico. Vendas em `COMPLETED` ou `CANCELLED` rejeitam
+inclusões, remoções e novas chamadas de conclusão ou cancelamento.
+
+Essas operações ainda ocorrem somente em memória, sem persistência de vendas
+ou movimentação de estoque.
 
 ## 🗄️ Banco de dados
 
@@ -132,10 +152,23 @@ mvn test
 | `ProductDAOTest` | Integração | 5 |
 | `StockTest` | Unidade | 4 |
 | `ClientServiceTest` | Unidade | 9 |
-| **Total** |  | **25** |
+| `ProductServiceTest` | Unidade | 9 |
+| `SaleItemTest` | Unidade | 15 |
+| `SaleTest` | Unidade | 21 |
+| **Total** |  | **70** |
 
 `DaoIntegrationTestSupport` prepara o schema e limpa `TB_STOCK`, `TB_CLIENT` e
 `TB_PRODUCT` antes e depois de cada teste de integração.
+
+Para executar apenas os testes de services e domínio, sem PostgreSQL:
+
+```bash
+mvn -Dtest=ClientServiceTest,ProductServiceTest,StockTest,SaleItemTest,SaleTest test
+```
+
+Os testes atuais cobrem os cenários descritos neste checkpoint, sem representar
+cobertura exaustiva do domínio. Ainda podemos complementar casos como código
+de venda inválido, cliente sem ID e produto nulo.
 
 ## 🗺️ Roadmap
 
@@ -155,7 +188,11 @@ mvn test
 - [x] Criar `Stock` e separar o saldo de `Product`.
 - [x] Criar o schema de estoque com chave estrangeira para produto.
 - [x] Implementar e testar o `ClientService`.
-- [ ] Implementar e testar o `ProductService`.
+- [x] Implementar e testar o `ProductService`.
+- [x] Testar cálculo, preço e alterações de quantidade de `SaleItem`.
+- [x] Testar itens, totais e transições de status de `Sale`.
+- [ ] Complementar testes de validação de entrada do domínio.
+- [ ] Definir e implementar validações de cadastro nos services.
 - [ ] Implementar persistência e serviço de estoque.
 - [ ] Criar os schemas de venda e itens.
 - [ ] Implementar persistência transacional de vendas e estoque.
@@ -171,4 +208,4 @@ O `.env` deve permanecer somente no ambiente local de cada desenvolvedor.
 
 ----
 
-### Fabio Peretti Guimarães | EBAC mod30 - PROJETO 03 | AGO 2026
+### Fabio Peretti Guimarães | EBAC mod30 - PROJETO 03 | SET 2026
