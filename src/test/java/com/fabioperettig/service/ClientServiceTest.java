@@ -112,7 +112,6 @@ public class ClientServiceTest {
         Assertions.assertFalse(result);
     }
 
-
     private static class FakeClientDAO implements IGenericDAO<Client, Long> {
         private Client receivedClient;
         private Client clientToFind;

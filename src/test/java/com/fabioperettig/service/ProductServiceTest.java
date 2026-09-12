@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import javax.swing.*;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,6 +56,60 @@ public class ProductServiceTest {
 
         Assertions.assertEquals(99L, productDAO.receivedId);
         Assertions.assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void shouldDelegateFindAllToDAO() {
+        Product firstProduct = ProductTestFactory.create("PROD0003");
+        Product secondProduct = ProductTestFactory.create("PROD0004");
+        Product thirdProduct = ProductTestFactory.create("PROD0005");
+
+        List<Product> expectedProducts = List.of(firstProduct, secondProduct, thirdProduct);
+        productDAO.productsToFind = expectedProducts;
+
+        List<Product> result = service.findAll();
+
+        Assertions.assertSame(expectedProducts, result);
+    }
+
+    @Test
+    void shouldReturnTrueWhenProductIsUpdated() {
+        Product product = ProductTestFactory.create("PROD0006");
+        productDAO.updateResult = true;
+
+        boolean result = service.update(product);
+
+        Assertions.assertSame(product, productDAO.receivedProductForUpdate);
+        Assertions.assertTrue(result);
+    }
+
+    @Test
+    void shouldReturnFalseWhenProductIsNotUpdated() {
+        Product product = ProductTestFactory.create("PROD0007");
+        productDAO.updateResult = false;
+
+        boolean result = service.update(product);
+
+        Assertions.assertSame(product, productDAO.receivedProductForUpdate);
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void shouldReturnTrueWhenProductIsDeleted() {
+        productDAO.deleteResult = true;
+        boolean result = service.deleteById(10L);
+
+        Assertions.assertEquals(10L, productDAO.receivedIdForDeletion);
+        Assertions.assertTrue(result);
+    }
+
+    @Test
+    void shouldReturnFalseWhenProductIsNotDeleted() {
+        productDAO.deleteResult = false;
+        boolean result = service.deleteById(99L);
+
+        Assertions.assertEquals(99L, productDAO.receivedIdForDeletion);
+        Assertions.assertFalse(result);
     }
 
     private static class FakeProductDAO implements IGenericDAO<Product, Long> {
