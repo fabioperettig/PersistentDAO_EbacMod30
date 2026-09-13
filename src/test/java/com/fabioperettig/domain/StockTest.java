@@ -1,7 +1,5 @@
-package com.fabioperettig.dao;
+package com.fabioperettig.domain;
 
-import com.fabioperettig.domain.Product;
-import com.fabioperettig.domain.Stock;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

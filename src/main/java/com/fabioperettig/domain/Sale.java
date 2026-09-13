@@ -17,10 +17,16 @@ public final class Sale {
     private SaleStatus status;
 
     public Sale(String code, Client client) {
+        this(code, client, Instant.now());
+    }
+
+    private Sale(String code, Client client, Instant saleDate) {
         this.code = requireCode(code);
         this.client = requirePersistedClient(client);
         this.items = new LinkedHashMap<>();
-        this.saleDate = Instant.now();
+        this.saleDate = Objects.requireNonNull(
+                saleDate, "Sale date is required"
+        );
         this.status = SaleStatus.INITIATED;
     }
 
@@ -120,7 +126,6 @@ public final class Sale {
         return product.getId();
     }
 
-
     public Long getId() {
         return id;
     }
@@ -147,5 +152,42 @@ public final class Sale {
 
     public SaleStatus getStatus() {
         return status;
+    }
+
+    /// recupera os dados do DB (chamado pelo DAO)
+    public static Sale restore(
+            Long id,
+            String code,
+            Client client,
+            Instant saleDate,
+            SaleStatus status,
+            List<SaleItem> savedItems
+    ) {
+        Objects.requireNonNull(id, "Sale ID is required");
+        Objects.requireNonNull(status, "Sale status is required");
+        Objects.requireNonNull(savedItems, "Sale items are required");
+
+        Sale sale = new Sale(code, client, saleDate);
+        sale.id = id;
+
+        for (SaleItem item : savedItems) {
+            Objects.requireNonNull(item, "Sale item is required");
+            Long productId = requireProductId(item.getProduct());
+
+            SaleItem copy = new SaleItem(
+                    item.getProduct(), item.getQuantity(), item.getUnitPrice()
+            );
+
+            if (sale.items.putIfAbsent(productId, copy) != null) {
+                throw new IllegalArgumentException("Duplicate product in sale");
+            }
+        }
+
+        if (status == SaleStatus.COMPLETED && sale.items.isEmpty()) {
+            throw new IllegalArgumentException("Completed sale must have items");
+        }
+
+        sale.status = status;
+        return sale;
     }
 }

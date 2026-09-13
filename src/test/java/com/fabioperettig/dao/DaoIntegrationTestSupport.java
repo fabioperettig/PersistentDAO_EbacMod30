@@ -34,7 +34,9 @@ public abstract class DaoIntegrationTestSupport {
     private void cleanDatabase() throws SQLException {
         try (Connection connection = connectionFactory.getConnection();
              Statement statement = connection.createStatement()) {
-            statement.executeUpdate("TRUNCATE TABLE tb_stock, tb_client, tb_product");
+            statement.executeUpdate(
+                    "TRUNCATE TABLE tb_sale_item, tb_sale, tb_stock, tb_client, tb_product"
+            );
         }
     }
 }

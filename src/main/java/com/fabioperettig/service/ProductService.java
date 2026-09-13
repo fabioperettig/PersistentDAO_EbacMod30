@@ -16,8 +16,8 @@ public class ProductService implements IGenericService<Product, Long> {
     }
 
     @Override
-    public Product create(Product entity) {
-        return productDAO.create(entity);
+    public Product create(Product product) {
+        return productDAO.create(product);
     }
 
     @Override
@@ -31,8 +31,8 @@ public class ProductService implements IGenericService<Product, Long> {
     }
 
     @Override
-    public boolean update(Product entity) {
-        return productDAO.update(entity);
+    public boolean update(Product product) {
+        return productDAO.update(product);
     }
 
     @Override
