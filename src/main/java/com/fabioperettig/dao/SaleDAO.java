@@ -39,6 +39,22 @@ public class SaleDAO {
         WHERE i.sale_id = ? ORDER BY i.product_id
         """;
 
+    private static final String DECREASE_STOCK_SQL = """
+        UPDATE tb_stock
+        SET available_quantity = available_quantity - ?
+        WHERE product_id = ? AND available_quantity >= ?
+        """;
+
+    private static final String COMPLETE_SALE_SQL = """
+        UPDATE tb_sale SET status_sale = 'COMPLETED'
+        WHERE id = ? AND status_sale = 'INITIATED'
+        """;
+
+    private static final String CANCEL_SALE_SQL = """
+        UPDATE tb_sale SET status_sale = 'CANCELLED'
+        WHERE id = ? AND status_sale = 'INITIATED'
+        """;
+
     public SaleDAO(ConnectionFactory connectionFactory) {
         this.connectionFactory = Objects.requireNonNull(
                 connectionFactory, "ConnectionFactory is required"
@@ -96,6 +112,10 @@ public class SaleDAO {
 
         if (sale.getId() != null) {
             throw new IllegalArgumentException("Sale already has an ID");
+        }
+
+        if (sale.getStatus() != SaleStatus.INITIATED) {
+            throw new IllegalArgumentException("New sale must be initiated");
         }
 
         try (Connection connection = connectionFactory.getConnection()) {
@@ -189,6 +209,89 @@ public class SaleDAO {
             }
         } catch (SQLException exception) {
             throw new DataAccessException("Failed to find sale by ID", exception);
+        }
+    }
+
+    private void decreaseStock(Connection connection, List<SaleItem> items)
+            throws SQLException {
+
+        try (PreparedStatement statement =
+                     connection.prepareStatement(DECREASE_STOCK_SQL)) {
+
+            for (SaleItem item : items) {
+                statement.setInt(1, item.getQuantity());
+                statement.setLong(2, item.getProduct().getId());
+                statement.setInt(3, item.getQuantity());
+
+                if (statement.executeUpdate() != 1) {
+                    throw new IllegalStateException(
+                            "Insufficient or missing stock for product: "
+                                    + item.getProduct().getId()
+                    );
+                }
+            }
+        }
+    }
+
+    public void complete(Long saleId) {
+        Objects.requireNonNull(saleId, "Sale ID is required");
+
+        try (Connection connection = connectionFactory.getConnection()) {
+            connection.setAutoCommit(false);
+
+            try {
+                try (PreparedStatement statement =
+                             connection.prepareStatement(COMPLETE_SALE_SQL)) {
+                    statement.setLong(1, saleId);
+
+                    if (statement.executeUpdate() != 1) {
+                        throw new IllegalStateException(
+                                "Sale does not exist or is not initiated"
+                        );
+                    }
+                }
+
+                List<SaleItem> items = findItems(connection, saleId);
+
+                if (items.isEmpty()) {
+                    throw new IllegalStateException(
+                            "A sale without items cannot be completed"
+                    );
+                }
+
+                decreaseStock(connection, items);
+                connection.commit();
+
+            } catch (SQLException exception) {
+                rollback(connection, exception);
+                throw new DataAccessException("Failed to complete sale", exception);
+            } catch (RuntimeException exception) {
+                rollback(connection, exception);
+                throw exception;
+            }
+        } catch (SQLException exception) {
+            throw new DataAccessException(
+                    "Failed to open or close sale connection", exception
+            );
+        }
+    }
+
+    public void cancel(Long saleId) {
+        Objects.requireNonNull(saleId, "Sale ID is required");
+
+        try (Connection connection = connectionFactory.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(CANCEL_SALE_SQL)) {
+
+            statement.setLong(1, saleId);
+
+            if (statement.executeUpdate() != 1) {
+                throw new IllegalStateException(
+                        "Sale does not exist or is not initiated"
+                );
+            }
+        } catch (SQLException exception) {
+            throw new DataAccessException("Failed to cancel sale", exception);
         }
     }
 
