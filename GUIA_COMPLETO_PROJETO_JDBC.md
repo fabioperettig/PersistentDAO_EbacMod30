@@ -1,12 +1,8 @@
 # Guia de estudo — do objeto Java à venda persistida
 
-Este guia acompanha o projeto **EBAC — Módulo 30**, no checkpoint de **14/09/2026**. Seu objetivo é explicar como as peças funcionam, por que foram construídas assim e como seguir o caminho de uma operação pelo código.
+Este guia acompanha o projeto **EBAC — Módulo 30** e seu objetivo é explicar a implementação mais a fundo, analisando cada etapa e a construção/fluxo de toda a arquitetura.
 
-O projeto usa Java, JDBC e PostgreSQL, sem ORM ou Spring. “JDBC puro” aqui significa que escrevemos SQL, mapeamento e controle de transações: ainda usamos o driver PostgreSQL, Dotenv e JUnit como bibliotecas.
-
-Os exemplos menores são recortes didáticos: pressupõem imports e objetos indicados no texto. Exemplos de evolução e de Spring estão identificados e **não fazem parte da implementação**.
-
-O [GUIA_ABSTRACT_DAO.md](GUIA_ABSTRACT_DAO.md) registra uma etapa anterior do aprendizado e contém observações sobre problemas daquela época. Este material descreve o código atual; em futuras alterações, confira também os arquivos vinculados.
+**O projeto usa padrão JDBC puro e PostgreSQL**, sem ORM ou Spring. “JDBC puro” aqui significa que escrevemos SQL, mapeamento e controle de transações: ainda usamos o driver PostgreSQL, Dotenv e JUnit como bibliotecas.
 
 ## Como consultar
 
@@ -82,7 +78,7 @@ Todos os caminhos abaixo são relativos à raiz do projeto.
 | Erro de persistência | [DataAccessException.java](src/main/java/com/fabioperettig/exception/DataAccessException.java) |
 | Dependências e build | [pom.xml](pom.xml) |
 
-`src/main/java` contém a aplicação; `src/main/resources` contém recursos distribuídos com ela; `src/test/java` contém código de teste. `target` é saída gerada pelo Maven.
+`src/main/java` contém a aplicação; `src/main/resources` contém recursos distribuídos com ela; `src/test/java` contém código de teste.
 
 <a id="execucao"></a>
 ## 2. Configuração e execução
@@ -94,7 +90,6 @@ O [pom.xml](pom.xml) configura compilação para Java 17 e declara:
 | PostgreSQL JDBC | Implementar a comunicação JDBC com PostgreSQL | `runtime` |
 | Dotenv | Carregar a configuração local | `compile` |
 | JUnit Jupiter | Escrever e executar testes | `test` |
-| Maven Surefire | Executar testes durante o build | Plugin |
 
 Podemos compilar usando as interfaces `java.sql` do Java e precisar do driver apenas ao executar. Por isso o driver tem escopo `runtime`. JUnit não é necessário para o usuário abrir o console.
 
@@ -112,9 +107,7 @@ TEST_DB_USER=postgres
 TEST_DB_PASSWORD=sua_senha_local
 ```
 
-Use bancos distintos. Os testes de integração apagam os registros das cinco tabelas no banco de testes. A proteção de configuração compara as URLs como texto: URLs diferentes que apontem para o mesmo banco não são detectadas por essa comparação.
-
-O `.env` fica fora do Git. `ignoreIfMissing()` permite carregar a configuração mesmo sem esse arquivo, mas as variáveis obrigatórias continuam sendo exigidas ao criar a fábrica de conexões.
+Use bancos distintos, pois os testes de integração **apagam os registros das cinco tabelas no banco de testes** e o `.env` deve ficar **fora do Git**.
 
 ### Executar e testar
 
@@ -144,9 +137,9 @@ O projeto não configura um pacote executável que reúna automaticamente todas 
 
 ```java
 Product product = new Product();
-product.setName("Caderno");
-product.setCode("CAD001");
-product.setPrice(new BigDecimal("10.00"));
+product.setName("Cama");
+product.setCode("PROD0001");
+product.setPrice(new BigDecimal("250.00"));
 ```
 
 Até aqui só existe um objeto Java. `setName` não executa SQL. Depois de `productDAO.create(product)`, existe também uma linha no banco e o DAO atribui o ID gerado ao objeto.

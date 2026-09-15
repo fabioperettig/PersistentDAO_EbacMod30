@@ -4,90 +4,117 @@
 
 # ☕ Projeto EBAC – Módulo 30
 
-Projeto de estudo desenvolvido em Java 17 para praticar persistência com JDBC e
-PostgreSQL, sem Spring, JPA, Hibernate ou outro ORM.
+Projeto DAO persistência em PostgreSQL, implementado puramente JDBC com separação de responsabilidades,
+DAO e interfaces reutilizáveis e testes jUnit em um cenário mais próximo do real. Mas,
+sem Spring, JPA, Hibernate ou outro ORM.
 
-O código parte de uma implementação JDBC antiga e foi reorganizado em
-camadas, com responsabilidades bem definidas, DAOs reutilizáveis e testes
-automatizados.
+> Este projeto foi pensado e construído ao longo de dois meses, passando por reestruturações desde a fase inicial,
+> seguindo soluções de outros projetos DAO e feito para se assemelhar o mais próximo possível de um projeto real.
+> A intenção é que este projeto possa ser usado como portifólio e case de estudo para uso de JDBC.
 
-## 📍 Checkpoint atual
+### 🏛 Arquitetura do projeto️
+| Camada | Implementado                                                                                      |
+|---|---------------------------------------------------------------------------------------------------|
+| Domínio | Clientes, produtos, estoque, vendas e itens com histórico de preço;                               |
+| Persistência | CRUD de clientes, produtos e estoque, com registro, consulta, conclusão e cancelamento de vendas; |
+| Serviço | `ClientService`, `ProductService`, `StockService` e `SaleService`                                 |
+| Console | `Main` e `AppController` com submenus para clientes, produtos, estoque e vendas                   |
+| Validação | 87 testes aprovados e fluxo de console conferido manualmente pelo autor                           |
 
-Atualizado em 14/09/2026. Escopo funcional planejado para a entrega concluído.
 
-| Camada | Implementado |
-|---|---|
-| Domínio | Clientes, produtos, estoque, vendas e itens; reconstrução de vendas com preços históricos |
-| Persistência | CRUD de clientes, produtos e estoque; criação, consulta, conclusão e cancelamento de vendas |
-| Serviço | `ClientService`, `ProductService`, `StockService` e `SaleService` |
-| Console | `Main` e `AppController` com submenus para clientes, produtos, estoque e vendas |
-| Validação | 87 testes aprovados e fluxo de console conferido manualmente pelo autor |
+<details><summary>Estrutura detalhada</summary>
 
-### Destaques deste checkpoint
+```
+src
+├── main
+│   ├── java (com.fabioperettig)
+│   │   ├── .config
+│   │   │     ├── ConnectionFactory
+│   │   │     ├── DatabaseConfig
+│   │   │     └── SchemaInitializer
+│   │   │
+│   │   ├── .controller
+│   │   │     └── SchemaInitializer
+│   │   │
+│   │   ├── .dao
+│   │   │     ├── AbstractDAO
+│   │   │     ├── ClientDAO
+│   │   │     ├── IGenericDAO
+│   │   │     ├── ProductDAO
+│   │   │     ├── SaleDAO
+│   │   │     └── StockDAO
+│   │   │
+│   │   ├── .domain
+│   │   │     ├── Client
+│   │   │     ├── Product
+│   │   │     ├── Sale
+│   │   │     ├── SaleItem
+│   │   │     ├── SaleStatus
+│   │   │     └── Stock
+│   │   │
+│   │   ├── .exception
+│   │   │     └── DataAccessException
+│   │   │
+│   │   ├── .service
+│   │   │     ├── ClientService
+│   │   │     ├── IGenericService
+│   │   │     ├── ProductService
+│   │   │     ├── SaleService
+│   │   │     └── StockService
+│   │   │
+│   │   └── Main     
+│   │
+│   └── resources
+│       └── database
+│            ├── schemaClient.sql
+│            ├── schemaProduct.sql
+│            ├── schemaSale.sql
+│            ├── schemaSaleItem.sql
+│            └── schemaStock.sql
+│
+└── test
+    └── java (com.fabioperettig)
+        ├── .config
+        │     └── DatabaseEnvironment
+        │
+        ├── .dao
+        │     ├── ClientDAOTest
+        │     ├── DaoIntegrationTestSupport
+        │     ├── ProductDAOTest
+        │     ├── SaleDAOTest
+        │     └── StockDAOTest
+        │
+        ├── .domain
+        │     ├── SaleTest
+        │     ├── SaleItemTest
+        │     └── StockTest
+        │
+        ├── .factory (pattern para Mocks)
+        │     ├── ClientTestFactory
+        │     └── ProductTestFactory
+        │
+        └── .service
+              ├── ClientServiceTest
+              └── ProductServiceTest
 
-- `AbstractDAO<T, ID>` concentra o fluxo JDBC comum do CRUD.
-- `ClientDAO` e `ProductDAO` mantêm apenas SQL, parâmetros e mapeamentos.
-- `Stock` separa o saldo da entidade `Product`.
-- `ClientService` e `ProductService` delegam o CRUD pelo contrato `IGenericDAO`,
-  com proteção contra DAO nulo no construtor.
-- Os testes dos dois services usam DAOs falsos, sem acesso ao banco.
-- `SaleItemTest` cobre subtotal, preservação do preço, quantidades inválidas,
-  aumento, redução e proteção contra overflow.
-- `SaleTest` cobre itens, totais, remoções inválidas, conclusão, cancelamento
-  e bloqueios de operações após o encerramento da venda.
-- O ambiente de integração inicializa e limpa o PostgreSQL de testes.
-- `StockDAO` implementa o CRUD usando o ID do produto e consulta os dados com
-  `JOIN`; seus sete testes de integração foram aprovados.
-- `StockService` delega as operações ao DAO, com proteção contra dependência nula.
-- `SaleDAO.create` grava venda e itens na mesma transação, com commit e rollback.
-  O ID só é atribuído ao objeto após o commit.
-- `SaleDAO.findById` recupera cliente e itens e usa `Sale.restore` para preservar
-  data, status e preços históricos.
-
-- A conclusão da venda atualiza status e estoque na mesma transação, com
-  rollback se faltar saldo em qualquer item.
-- O cancelamento preserva os itens e não movimenta estoque. Apenas vendas
-  iniciadas podem ser concluídas ou canceladas.
-- O console oferece cadastro, busca, listagem, alteração e exclusão de clientes
-  e produtos, além de manutenção de estoque e operações de venda.
-
-A suíte completa passou com 87 testes, sem falhas ou erros. O autor também
-confirmou manualmente o fluxo de cadastro, criação e consulta de venda,
-conclusão com baixa de estoque e cancelamento pelo console.
-
-## 🧰 Tecnologias
-
-`Java 17` · `Maven` · `JDBC` · `PostgreSQL` · `DotEnv` · `JUnit 6`
-
-## 🏗️ Arquitetura
-
-```text
-Main → AppController → Services
-
-ClientService / ProductService → IGenericDAO → AbstractDAO → ClientDAO / ProductDAO
-StockService                   → IGenericDAO → StockDAO
-SaleService                    → SaleDAO → venda, itens e baixa transacional de estoque
-
-Todos os DAOs → ConnectionFactory → PostgreSQL
 ```
 
-`SaleDAO` possui operações específicas e não implementa o CRUD genérico.
-O `Main` monta as dependências e inicia o `AppController`. O controller coleta
-as entradas, chama os services e apresenta os resultados.
+</details>
 
-O contrato `IGenericDAO<T, ID>` define `create`, `findById`, `findAll`, `update`
-e `deleteById`. O `AbstractDAO` implementa o ciclo JDBC desses métodos para
-clientes e produtos, cujos DAOs concretos fornecem:
+### ✨ Destaques do projeto
 
-- SQL específico da entidade;
-- parâmetros do `PreparedStatement`;
-- mapeamento do `ResultSet`;
-- leitura e atribuição do ID gerado.
+- `AbstractDAO<T, ID>` concentra o fluxo JDBC comum do CRUD.
+- `Stock` separa o saldo da entidade `Product`.
+- `ClientDAO` e `ProductDAO` mantêm apenas SQL, parâmetros e mapeamentos.
+- `SaleDAO.findById` recupera cliente e itens e usa `Sale.restore` para preservar
+  data, status e preços históricos.
+- `ClientService` e `ProductService` delegam o CRUD pela interface `IGenericDAO`.
+- O ambiente de integração inicializa e limpa o PostgreSQL de testes.
+- Os testes usam DAOs falsos, com entidades Mock e sem acesso ao banco real.
+- O console oferece um CRUD completo: cadastro, busca, listagem, alteração e exclusão de clientes
+  e produtos, além de manutenção de estoque e operações de venda.
 
-Veja a implementação comentada em [GUIA_ABSTRACT_DAO.md](GUIA_ABSTRACT_DAO.md).
-
-`StockDAO` implementa `IGenericDAO<Stock, Long>` diretamente porque o estoque
-utiliza o ID do produto, sem gerar um identificador próprio.
+>Veja a implementação em detalhes em [GUIA_COMPLETO_PROJETO_JDBC.md](GUIA_COMPLETO_PROJETO_JDBC.md).
 
 ## 🧩 Domínio
 
@@ -250,56 +277,6 @@ busca sem resultado, conclusão com baixa, rollback por estoque insuficiente,
 conclusão repetida, cancelamento sem baixa e transições proibidas de status.
 O console foi verificado manualmente; não há testes automatizados específicos
 para o controller, `StockService` ou `SaleService`.
-
-Para executar apenas os testes de services e domínio, sem PostgreSQL:
-
-```bash
-mvn -Dtest=ClientServiceTest,ProductServiceTest,StockTest,SaleItemTest,SaleTest test
-```
-
-Os testes atuais cobrem os cenários descritos neste checkpoint, sem representar
-cobertura exaustiva do domínio. Os próximos blocos terão no máximo dez testes
-novos cada, priorizando fluxos principais, integridade e rollback. Testes
-adicionais de validação do domínio ficam como melhoria futura.
-
-## 🗺️ Roadmap
-
-- [x] Criar as entidades de domínio `Client` e `Product`.
-- [x] Criar os schemas de cliente e produto.
-- [x] Definir a interface genérica de CRUD.
-- [x] Implementar o ciclo JDBC no `AbstractDAO`.
-- [x] Implementar `ClientDAO` e `ProductDAO`.
-- [x] Criar `ConnectionFactory` e `DataAccessException`.
-- [x] Adicionar DotEnv e proteger o `.env` no Git.
-- [x] Criar `DatabaseConfig` para carregar o `.env`.
-- [x] Criar `SchemaInitializer` para executar os schemas uma vez.
-- [x] Criar e validar banco PostgreSQL exclusivo para testes.
-- [x] Implementar factories para os dados dos testes.
-- [x] Implementar testes de integração dos DAOs.
-- [x] Modelar `SaleStatus`, `SaleItem` e `Sale`.
-- [x] Criar `Stock` e separar o saldo de `Product`.
-- [x] Criar o schema de estoque com chave estrangeira para produto.
-- [x] Implementar e testar o `ClientService`.
-- [x] Implementar e testar o `ProductService`.
-- [x] Testar cálculo, preço e alterações de quantidade de `SaleItem`.
-- [x] Testar itens, totais e transições de status de `Sale`.
-- [x] Implementar `StockDAO` e validar com sete testes de integração.
-- [x] Implementar a delegação do CRUD no `StockService`.
-- [x] Criar e registrar os schemas de venda e itens.
-- [x] Atualizar a preparação dos testes para as cinco tabelas.
-- [x] Implementar `Sale.restore` e a leitura dos preços históricos.
-- [x] Implementar `SaleDAO.create` com transação para venda e itens.
-- [x] Implementar `SaleDAO.findById` com reconstrução da venda.
-- [x] Validar persistência, consulta e rollback em dez testes de `SaleDAO`.
-- [x] Implementar serviço de vendas e persistência das transições de status.
-- [x] Integrar conclusão da venda e baixa de estoque na mesma transação.
-- [x] Criar um `AppController` de console e iniciar o fluxo pelo `Main`.
-- [x] Executar a suíte completa e finalizar a documentação de entrega.
-
-- [x] Conferir manualmente o fluxo completo pelo console.
-
-Melhorias futuras: ampliar validações de cadastro e seus testes, e introduzir
-DTOs ou separar controllers se o fluxo da aplicação justificar.
 
 ## 🔐 Segurança
 
