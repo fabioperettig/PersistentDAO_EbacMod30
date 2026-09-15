@@ -1,7 +1,6 @@
 package com.fabioperettig.controller;
 
-import com.fabioperettig.domain.Client;
-import com.fabioperettig.domain.Product;
+import com.fabioperettig.domain.*;
 import com.fabioperettig.exception.DataAccessException;
 import com.fabioperettig.service.ClientService;
 import com.fabioperettig.service.ProductService;
@@ -68,6 +67,7 @@ public class AppController {
                     case "1" -> clientsMenu();
                     case "2" -> productsMenu();
                     case "3" -> stockMenu();
+                    case "4" -> salesMenu();
                     case "0" -> {
                         System.out.println("Até logo!");
                         return;
@@ -190,6 +190,36 @@ public class AppController {
                 case "3" -> findAllStocks();
                 case "4" -> adjustBalance();
                 case "5" -> deleteRegister();
+                case "0" -> {
+                    return;
+                }
+                default -> System.out.println("Opção inválida.");
+            }
+        }
+    }
+
+    private void salesMenu() {
+        while (true) {
+            System.out.println("""
+                   
+                   === Vendas ===
+                   1 - Buscar por ID
+                   2 - Criar venda
+                   3 - Concluir venda
+                   4 - Cancelar venda
+                   0 - Voltar
+                   """);
+            System.out.println("Opção: ");
+
+            if (!scanner.hasNextLine()) {
+                return;
+            }
+
+            switch (scanner.nextLine().trim()){
+                case "1" -> findSaleById();
+                case "2" -> registerSale();
+                case "3" -> completeSale();
+                case "4" -> cancelSale();
                 case "0" -> {
                     return;
                 }
@@ -352,6 +382,194 @@ public class AppController {
         );
     }
 
+    ///métodos Estoque
+    private void registerInitialBalance() {
+        Long productId = readId("ID do produto: ");
+
+        Product product = productService.findById(productId).orElseThrow(
+                () -> new IllegalArgumentException("Produto não encontrado.")
+        );
+
+        if (stockService.findById(productId).isPresent()) {
+            System.out.println("Estoque já cadastrado. Use a opção Ajustar saldo.");
+            return;
+        }
+
+        showProduct(product);
+
+        int quantity = readNonNegativeQuantity("Saldo inicial: ");
+        Stock createdStock = stockService.create(new Stock(product, quantity));
+
+        System.out.println("Estoque cadastrado.");
+        showStock(createdStock);
+    }
+
+    private void findByProduct() {
+        Long productId = readId("ID do produto: ");
+
+        stockService.findById(productId).ifPresentOrElse(
+                stock -> showStock(stock),
+                () -> System.out.println("Estoque não encontrado para esse produto.")
+        );
+    }
+
+    private void findAllStocks() {
+        List<Stock> stocks = stockService.findAll();
+
+        if (stocks.isEmpty()) {
+            System.out.println("Nenhum estoque cadastrado.");
+            return;
+        }
+
+        for (Stock stock : stocks) {
+            showStock(stock);
+        }
+    }
+
+    private void adjustBalance() {
+        Long productId = readId("ID do produto: ");
+
+        Stock stock = stockService.findById(productId).orElseThrow(
+                () -> new IllegalArgumentException("Estoque não encontrado.")
+        );
+
+        showStock(stock);
+
+        int newQuantity = readNonNegativeQuantity("Novo saldo total: ");
+        Stock adjustedStock = new Stock(stock.getProduct(), newQuantity);
+
+        boolean updated = stockService.update(adjustedStock);
+
+        System.out.println(
+                updated ? "Saldo atualizado." : "Estoque não encontrado para atualização."
+        );
+    }
+
+    private void deleteRegister() {
+        Long productId = readId("ID do produto: ");
+
+        Stock stock = stockService.findById(productId).orElseThrow(
+                () -> new IllegalArgumentException("Estoque não encontrado.")
+        );
+
+        showStock(stock);
+
+        String confirmation = readRequired(
+                "Excluir o registro de estoque, mantendo o produto? (s/n): "
+        );
+
+        if (!confirmation.equalsIgnoreCase("s")) {
+            System.out.println("Exclusão cancelada.");
+            return;
+        }
+
+        boolean deleted = stockService.deleteById(productId);
+
+        System.out.println(
+                deleted ? "Registro de estoque excluído." : "Estoque não encontrado para exclusão."
+        );
+    }
+
+    ///métodos Venda
+    private void findSaleById() {
+        Long saleId = readId("ID da venda: ");
+
+        saleService.findById(saleId).ifPresentOrElse(
+                sale -> showSale(sale),
+                () -> System.out.println("Venda não encontrada.")
+        );
+    }
+
+    private void registerSale() {
+        Long clientId = readId("ID do cliente: ");
+
+        Client client = clientService.findById(clientId).orElseThrow(
+                () -> new IllegalArgumentException("Cliente não encontrado.")
+        );
+
+        String code = readRequired("Código da venda: ");
+        Sale sale = new Sale(code, client);
+
+        while(true) {
+            String input = readRequired(
+                    "ID do produto (0 para finalizar os itens): "
+            );
+
+            long productId = Long.parseLong(input);
+
+            if (productId == 0) {
+                break;
+            }
+
+            if (productId < 0) {
+                throw new IllegalArgumentException("O ID deve ser positivo.");
+            }
+
+            Product product = productService.findById(productId).orElseThrow(
+                    () -> new IllegalArgumentException("Produto não encontrado.")
+            );
+
+            showProduct(product);
+
+            int quantity = readNonNegativeQuantity("Quantidade: ");
+            sale.addProduct(product, quantity);
+
+            System.out.println("Produto adicionado.");
+        }
+
+        if (sale.getItems().isEmpty()) {
+            System.out.println("Nenhum item informado. Venda não cadastrada.");
+            return;
+        }
+
+        Sale createdSale = saleService.create(sale);
+
+        System.out.printf("Venda cadastrada. ID: %d%n", createdSale.getId());
+        showSale(createdSale);
+    }
+
+    private void completeSale() {
+        Long saleId = readId("ID da venda: ");
+
+        Sale sale = saleService.findById(saleId).orElseThrow(
+                () -> new IllegalArgumentException("Venda não encontrada.")
+        );
+
+        showSale(sale);
+
+        String confirmation = readRequired(
+                "Concluir venda e baixar o estoque? (s/n): "
+        );
+
+        if (!confirmation.equalsIgnoreCase("s")) {
+            System.out.println("Operação cancelada.");
+            return;
+        }
+
+        saleService.complete(saleId);
+        System.out.println("Venda concluída e estoque atualizado.");
+    }
+
+    private void cancelSale() {
+        Long saleId = readId("ID da venda: ");
+
+        Sale sale = saleService.findById(saleId).orElseThrow(
+                () -> new IllegalArgumentException("Venda não encontrada.")
+        );
+
+        showSale(sale);
+
+        String confirmation = readRequired("Cancelar esta venda? (s/n): ");
+
+        if (!confirmation.equalsIgnoreCase("s")) {
+            System.out.println("Operação cancelada.");
+            return;
+        }
+
+        saleService.cancel(saleId);
+        System.out.println("Venda cancelada. Itens preservados.");
+    }
+
     ///métodos auxiliares
     private Long readId(String prompt) {
         long id = Long.parseLong(readRequired(prompt));
@@ -392,5 +610,42 @@ public class AppController {
         }
 
         return price;
+    }
+
+    private int readNonNegativeQuantity(String prompt) {
+        int quantity = Integer.parseInt(readRequired(prompt));
+
+        if (quantity < 0) {
+            throw new IllegalArgumentException("A quantidade não pode ser negativa.");
+        }
+
+        return quantity;
+    }
+
+    private void showStock(Stock stock) {
+        System.out.printf(
+                "Produto ID: %d | Nome: %s | Quantidade disponível: %d%n",
+                stock.getProduct().getId(),
+                stock.getProduct().getName(),
+                stock.getAvailableQuantity()
+        );
+    }
+
+    private void showSale(Sale sale) {
+        System.out.printf(
+                "VendaID: %d | Código: %s | Cliente: %s | Status: %s%n",
+                sale.getId(), sale.getCode(), sale.getClient().getName(), sale.getStatus()
+        );
+
+        for (SaleItem item : sale.getItems()) {
+            System.out.printf(
+                    "Produto: %s | Quantidade: %d | Preço unitário: %s | Subtotal: %s%n",
+                    item.getProduct().getName(), item.getQuantity(),
+                    item.getUnitPrice().toPlainString(),
+                    item.getSubtotal().toPlainString()
+            );
+        }
+
+        System.out.printf("Total: %s%n", sale.getTotal().toPlainString());
     }
 }

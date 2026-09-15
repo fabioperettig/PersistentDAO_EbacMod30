@@ -7,20 +7,21 @@
 Projeto de estudo desenvolvido em Java 17 para praticar persistência com JDBC e
 PostgreSQL, sem Spring, JPA, Hibernate ou outro ORM.
 
-O código parte de uma implementação JDBC antiga e está sendo reorganizado em
+O código parte de uma implementação JDBC antiga e foi reorganizado em
 camadas, com responsabilidades bem definidas, DAOs reutilizáveis e testes
 automatizados.
 
 ## 📍 Checkpoint atual
 
-Atualizado em 13/09/2026.
+Atualizado em 14/09/2026. Escopo funcional planejado para a entrega concluído.
 
-| Camada | Concluído | Próximo passo |
-|---|---|---|
-| Domínio | Entidades e regras de venda; `Sale.restore` para reconstrução dos dados persistidos | Validar a reconstrução nos testes de integração |
-| Persistência | CRUD de clientes, produtos e estoque; cinco schemas; `SaleDAO.create` e `findById` implementados | Testar gravação, leitura e rollback de vendas |
-| Serviço | `ClientService`, `ProductService` e `StockService` com delegação do CRUD | Implementar o serviço de vendas e sua integração com estoque |
-| Testes | 77 testes de ambiente, integração e unidade | Criar os testes essenciais de persistência de vendas |
+| Camada | Implementado |
+|---|---|
+| Domínio | Clientes, produtos, estoque, vendas e itens; reconstrução de vendas com preços históricos |
+| Persistência | CRUD de clientes, produtos e estoque; criação, consulta, conclusão e cancelamento de vendas |
+| Serviço | `ClientService`, `ProductService`, `StockService` e `SaleService` |
+| Console | `Main` e `AppController` com submenus para clientes, produtos, estoque e vendas |
+| Validação | 87 testes aprovados e fluxo de console conferido manualmente pelo autor |
 
 ### Destaques deste checkpoint
 
@@ -43,9 +44,16 @@ Atualizado em 13/09/2026.
 - `SaleDAO.findById` recupera cliente e itens e usa `Sale.restore` para preservar
   data, status e preços históricos.
 
-A última execução completa da suíte passou com 77 testes. A implementação mais
-recente de gravação e consulta de vendas compila, mas ainda não possui testes
-de integração próprios; sua validação é o próximo passo.
+- A conclusão da venda atualiza status e estoque na mesma transação, com
+  rollback se faltar saldo em qualquer item.
+- O cancelamento preserva os itens e não movimenta estoque. Apenas vendas
+  iniciadas podem ser concluídas ou canceladas.
+- O console oferece cadastro, busca, listagem, alteração e exclusão de clientes
+  e produtos, além de manutenção de estoque e operações de venda.
+
+A suíte completa passou com 87 testes, sem falhas ou erros. O autor também
+confirmou manualmente o fluxo de cadastro, criação e consulta de venda,
+conclusão com baixa de estoque e cancelamento pelo console.
 
 ## 🧰 Tecnologias
 
@@ -54,16 +62,18 @@ de integração próprios; sua validação é o próximo passo.
 ## 🏗️ Arquitetura
 
 ```text
+Main → AppController → Services
+
 ClientService / ProductService → IGenericDAO → AbstractDAO → ClientDAO / ProductDAO
 StockService                   → IGenericDAO → StockDAO
-SaleDAO                        → gravação transacional e consulta de venda e itens
+SaleService                    → SaleDAO → venda, itens e baixa transacional de estoque
 
 Todos os DAOs → ConnectionFactory → PostgreSQL
 ```
 
 `SaleDAO` possui operações específicas e não implementa o CRUD genérico.
-O fluxo de entrada pelo `Main`, com um `AppController` de console, e o serviço
-de vendas ainda serão implementados.
+O `Main` monta as dependências e inicia o `AppController`. O controller coleta
+as entradas, chama os services e apresenta os resultados.
 
 O contrato `IGenericDAO<T, ID>` define `create`, `findById`, `findAll`, `update`
 e `deleteById`. O `AbstractDAO` implementa o ciclo JDBC desses métodos para
@@ -122,11 +132,18 @@ valores para consulta do histórico. Vendas em `COMPLETED` ou `CANCELLED` rejeit
 inclusões, remoções e novas chamadas de conclusão ou cancelamento.
 
 `Sale.restore` reconstrói uma venda com ID, data, status e preços dos itens
-fornecidos pelo DAO. `SaleDAO` já implementa a criação e a consulta por ID;
-ainda falta validar essas operações por testes de integração.
+fornecidos pelo DAO. A criação e a consulta por ID são validadas por testes
+com PostgreSQL, incluindo preservação do preço histórico e rollback dos itens.
 
-`complete()` e `cancel()` continuam alterando apenas o objeto em memória.
-A persistência dessas transições e a baixa de estoque ainda serão integradas.
+`Sale.complete()` e `Sale.cancel()` alteram o objeto em memória. No fluxo de
+console, `SaleService` chama as operações persistidas do `SaleDAO` por ID.
+A conclusão baixa o estoque e confirma o status em uma única transação;
+se ocorrer falha, ambos são desfeitos. Uma conclusão repetida é rejeitada para
+impedir uma segunda baixa. O cancelamento altera somente o status no banco.
+Novas vendas só podem ser persistidas em `INITIATED`.
+
+O console monta os itens antes de salvar a venda. A edição dos itens de uma
+venda já persistida não faz parte do fluxo implementado.
 
 ## 🗄️ Banco de dados
 
@@ -171,6 +188,36 @@ O arquivo contém dados locais, está ignorado pelo Git e não deve ser enviado 
 repositório. A configuração também rejeita o uso da mesma URL para os dois
 ambientes.
 
+## ▶️ Executar a aplicação
+
+Com o PostgreSQL disponível e o `.env` configurado, abra o projeto Maven no
+IntelliJ e execute `com.fabioperettig.Main`. Use a raiz do projeto como diretório
+de trabalho para carregar o `.env`. O `Main` usa `DB_*` (desenvolvimento),
+inicializa os schemas e abre o menu:
+
+```text
+1 - Clientes
+2 - Produtos
+3 - Estoque
+4 - Vendas
+0 - Sair
+```
+
+- **Clientes e produtos:** cadastrar, buscar por ID, listar, alterar e excluir.
+- **Estoque:** cadastrar saldo inicial, consultar por produto, listar, ajustar
+  o saldo total e excluir o registro mantendo o produto.
+- **Vendas:** buscar por ID, criar com vários itens, concluir e cancelar.
+
+Para criar uma venda, informe o cliente e os produtos pelos IDs retornados nos
+cadastros. Digite `0` ao terminar os itens. A criação não baixa estoque; a baixa
+ocorre na conclusão. O ajuste manual de estoque informa o novo saldo total.
+Os preços aceitam ponto ou vírgula decimal, sem separador de milhar.
+
+Roteiro de demonstração validado: cadastrar cliente e produto a `10.00`, criar
+estoque de oito unidades e vender três. Antes da conclusão, o estoque permanece
+em oito; depois, a venda fica `COMPLETED` e o saldo passa a cinco. Criar outra
+venda e cancelá-la preserva seus itens e mantém o saldo em cinco.
+
 ## ✅ Testes
 
 ```bash
@@ -183,19 +230,26 @@ mvn test
 | `ClientDAOTest` | Integração | 5 |
 | `ProductDAOTest` | Integração | 5 |
 | `StockDAOTest` | Integração | 7 |
+| `SaleDAOTest` | Integração | 10 |
 | `StockTest` | Unidade | 4 |
 | `ClientServiceTest` | Unidade | 9 |
 | `ProductServiceTest` | Unidade | 9 |
 | `SaleItemTest` | Unidade | 15 |
 | `SaleTest` | Unidade | 21 |
-| **Total** |  | **77** |
+| **Total** |  | **87** |
 
 `DaoIntegrationTestSupport` prepara os schemas e limpa as cinco tabelas em um
 único `TRUNCATE` antes e depois de cada teste de integração.
 
 `StockDAOTest` cobre criação e leitura, atualização, exclusão sem remover o
 produto, exclusão em cascata, listagem com saldo zero, estoque duplicado e
-produto inexistente. Ainda não há `SaleDAOTest` ou `StockServiceTest`.
+produto inexistente.
+
+`SaleDAOTest` cobre criação e consulta, preço histórico, rollback de inserção,
+busca sem resultado, conclusão com baixa, rollback por estoque insuficiente,
+conclusão repetida, cancelamento sem baixa e transições proibidas de status.
+O console foi verificado manualmente; não há testes automatizados específicos
+para o controller, `StockService` ou `SaleService`.
 
 Para executar apenas os testes de services e domínio, sem PostgreSQL:
 
@@ -236,11 +290,13 @@ adicionais de validação do domínio ficam como melhoria futura.
 - [x] Implementar `Sale.restore` e a leitura dos preços históricos.
 - [x] Implementar `SaleDAO.create` com transação para venda e itens.
 - [x] Implementar `SaleDAO.findById` com reconstrução da venda.
-- [ ] Validar persistência, consulta e rollback no `SaleDAOTest` (próximo passo).
-- [ ] Implementar serviço de vendas e persistência das transições de status.
-- [ ] Integrar conclusão da venda e baixa de estoque na mesma transação.
-- [ ] Criar um `AppController` de console e iniciar o fluxo pelo `Main`.
-- [ ] Executar a suíte completa e finalizar a documentação de entrega.
+- [x] Validar persistência, consulta e rollback em dez testes de `SaleDAO`.
+- [x] Implementar serviço de vendas e persistência das transições de status.
+- [x] Integrar conclusão da venda e baixa de estoque na mesma transação.
+- [x] Criar um `AppController` de console e iniciar o fluxo pelo `Main`.
+- [x] Executar a suíte completa e finalizar a documentação de entrega.
+
+- [x] Conferir manualmente o fluxo completo pelo console.
 
 Melhorias futuras: ampliar validações de cadastro e seus testes, e introduzir
 DTOs ou separar controllers se o fluxo da aplicação justificar.
