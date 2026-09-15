@@ -2,7 +2,7 @@
 ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Projeto Curso EBAC](https://img.shields.io/badge/Projeto--Curso--EBAC-navy?style=for-the-badge)
 
-# ☕ Projeto EBAC – Módulo 30
+# ☕ PersistentDAO 001 - Projeto DAO com persistência de Cliente e Produtos
 
 Projeto DAO persistência em PostgreSQL, implementado puramente JDBC com separação de responsabilidades,
 DAO e interfaces reutilizáveis e testes jUnit em um cenário mais próximo do real. Mas,
